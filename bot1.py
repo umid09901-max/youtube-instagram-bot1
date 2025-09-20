@@ -6,7 +6,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 import yt_dlp
 
 # 🔑 SIZNING BOT TOKENINGIZ — Buni o'zgartiring!
-TOKEN = "8300417047:AAGwbZ6viKc_X0VSc0WLcyIMd43KRQWXZaw"
+TOKEN = os.getenv("Bot token")
 
 # 📝 Logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -122,4 +122,5 @@ def main():
 
 # 🏁 Ishga tushirish
 if __name__ == '__main__':
+
     main()
