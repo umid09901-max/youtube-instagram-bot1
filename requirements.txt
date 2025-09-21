@@ -1,5 +1,4 @@
-python-telegram-bot==20.3
-yt-dlp==2023.11.14
-flask==2.3.2
+python-telegram-bot==20.7
+Flask==2.3.3
+yt-dlp
 gunicorn
-
