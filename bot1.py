@@ -1,21 +1,12 @@
-import logging
 import os
 import re
+import logging
 import asyncio
+import requests
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application, CommandHandler, MessageHandler,
-    filters, ContextTypes, CallbackQueryHandler
-)
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 import yt_dlp
-
-# Environment variables
-TOKEN = os.getenv("TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Render yoki Railway URL
-
-# Flask app
-app = Flask(__name__)
 
 # Logging
 logging.basicConfig(
@@ -23,6 +14,13 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# Environment variables
+TOKEN = os.getenv("TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Render URL
+
+# Flask app
+app = Flask(__name__)
 
 # Fayl nomini tozalash
 def sanitize_filename(name):
@@ -106,8 +104,24 @@ def webhook():
 def home():
     return "Bot ishlayapti 🚀", 200
 
+# Webhook tekshirish va o‘rnatish
+def check_and_set_webhook():
+    base_url = f"https://api.telegram.org/bot{TOKEN}"
+    resp = requests.get(f"{base_url}/getWebhookInfo").json()
+    expected_url = f"{WEBHOOK_URL}/{TOKEN}"
+
+    if not resp.get("url") or resp.get("url") != expected_url:
+        print("Webhook noto‘g‘ri yoki mavjud emas, yangilanmoqda...")
+        requests.get(f"{base_url}/deleteWebhook")
+        result = requests.get(f"{base_url}/setWebhook", params={"url": expected_url}).json()
+        print("Webhook yangilandi:", result)
+    else:
+        print("Webhook to‘g‘ri o‘rnatilgan ✅")
+
 def main():
-    application.bot.set_webhook(url=f"{WEBHOOK_URL}/{TOKEN}")
+    # Webhook tekshirish
+    check_and_set_webhook()
+    # Flask server
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), threaded=True)
 
 if __name__ == "__main__":
