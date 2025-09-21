@@ -2,8 +2,6 @@ import os
 import re
 import logging
 import asyncio
-import requests
-from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 import yt_dlp
@@ -18,9 +16,6 @@ logger = logging.getLogger(__name__)
 # Environment variables
 TOKEN = os.getenv("TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Render URL
-
-# Flask app
-app = Flask(__name__)
 
 # Fayl nomini tozalash
 def sanitize_filename(name):
@@ -93,40 +88,15 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
 application.add_handler(CallbackQueryHandler(restart_handler, pattern='^restart$'))
 
-# Webhook Flask route
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    asyncio.run(application.update_queue.put(update))
-    return "OK", 200
-
-@app.route("/", methods=["GET"])
-def home():
-    return "Bot ishlayapti 🚀", 200
-
-# Webhook tekshirish va o‘rnatish
-def check_and_set_webhook():
-    base_url = f"https://api.telegram.org/bot{TOKEN}"
-    resp = requests.get(f"{base_url}/getWebhookInfo").json()
-    expected_url = f"{WEBHOOK_URL}/{TOKEN}"
-
-    if not resp.get("url") or resp.get("url") != expected_url:
-        print("Webhook noto‘g‘ri yoki mavjud emas, yangilanmoqda...")
-        requests.get(f"{base_url}/deleteWebhook")
-        result = requests.get(f"{base_url}/setWebhook", params={"url": expected_url}).json()
-        print("Webhook yangilandi:", result)
-    else:
-        print("Webhook to‘g‘ri o‘rnatilgan ✅")
-
-def main():
-    # Webhook tekshirish
-    check_and_set_webhook()
-    # Flask server
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), threaded=True)
-
+# Render deploy bilan run_webhook
 if __name__ == "__main__":
-    main()
-
+    print("Bot ishga tushmoqda va webhook o‘rnatilyapti...")
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.getenv("PORT", 5000)),
+        url_path=TOKEN,
+        webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
+    )
 
 
 
