@@ -1,34 +1,35 @@
 import logging
 import os
 import re
+import asyncio
+from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     filters, ContextTypes, CallbackQueryHandler
 )
 import yt_dlp
-from flask import Flask, request
 
-# 🔑 TOKEN va WEBHOOK_URL
+# Environment variables
 TOKEN = os.getenv("TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Render yoki Railway dagi https://... URL
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Render yoki Railway URL
 
-# Flask app (Render uchun)
+# Flask app
 app = Flask(__name__)
 
-# 📝 Logging
+# Logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# 🧹 Fayl nomini tozalash
+# Fayl nomini tozalash
 def sanitize_filename(name):
     name = re.sub(r'[\\/*?:"<>|]', "", name)
     return name[:100]
 
-# 🎬 /start
+# /start komandasi
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Salom! YouTube yoki Instagram havolasini yuboring — men videoni yuklab beraman.\n"
@@ -42,12 +43,12 @@ async def restart_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     await query.message.reply_text("🎬 Yana qaysi videoni yuklashni xohlaysiz? Havolani yuboring 👇")
 
-# 📥 Video yuklab olish
+# 📥 Video yuklash
 async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
 
     if not url.startswith(("http://", "https://")):
-        await update.message.reply_text("❌ To‘g‘ri URL yuboring. Masalan: `https://youtu.be/...`", parse_mode="Markdown")
+        await update.message.reply_text("❌ To‘g‘ri URL yuboring.")
         return
 
     msg = await update.message.reply_text("⏳ Yuklab olinyapti... kuting.")
@@ -65,9 +66,9 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
+        loop = asyncio.get_event_loop()
+        info = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=True))
+        filename = yt_dlp.YoutubeDL(ydl_opts).prepare_filename(info)
 
         if not os.path.exists(filename):
             raise FileNotFoundError("❌ Fayl yuklanmadi.")
@@ -83,23 +84,22 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         keyboard = [[InlineKeyboardButton("🔄 Yana yuklash", callback_data='restart')]]
         await msg.edit_text("✅ Tayyor!", reply_markup=InlineKeyboardMarkup(keyboard))
-
         os.remove(filename)
 
     except Exception as e:
         await msg.edit_text(f"❌ Xatolik: {str(e)[:200]}")
 
-# 🚀 Telegram botni yaratish
+# Telegram bot
 application = Application.builder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
 application.add_handler(CallbackQueryHandler(restart_handler, pattern='^restart$'))
 
-# 🌐 Flask bilan Webhook
+# Webhook Flask route
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put_nowait(update)
+    asyncio.run(application.update_queue.put(update))
     return "OK", 200
 
 @app.route("/", methods=["GET"])
@@ -107,12 +107,12 @@ def home():
     return "Bot ishlayapti 🚀", 200
 
 def main():
-    # Webhook o‘rnatish
     application.bot.set_webhook(url=f"{WEBHOOK_URL}/{TOKEN}")
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), threaded=True)
 
 if __name__ == "__main__":
     main()
+
 
 
 
